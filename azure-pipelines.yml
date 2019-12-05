@@ -1,0 +1,61 @@
+# Xcode
+# Build, test, and archive an Xcode workspace on macOS.
+# Add steps that install certificates, test, sign, and distribute an app, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/xcode
+
+trigger:
+- master
+
+pool:
+  vmImage: 'macos-10.14'
+
+variables:
+  - group: ios-pipeline
+  - name: configuration
+    value: 'Release'
+  - name: sdk
+    value: 'iphoneos'
+
+steps:
+
+- task: InstallAppleCertificate@2
+  inputs:
+   certSecureFile: '$(p12FileName)'
+   certPwd: '$(p12Password)'
+   keychain: 'temp'
+   deleteCert: true  
+
+- task: InstallAppleProvisioningProfile@1
+  inputs:
+   provisioningProfileLocation: 'secureFiles'
+   provProfileSecureFile: '$(provisioningProfile)'
+   removeProfile: true
+
+- task: CocoaPods@0
+  inputs:
+    forceRepoUpdate: false
+
+- task: Xcode@5
+  inputs:
+    actions: 'build'
+    scheme: 'iOSPipeline'
+    sdk: '$(sdk)'
+    configuration: '$(configuration)'
+    xcWorkspacePath: '**/iOSPipeline.xcworkspace'
+    xcodeVersion: 'default'
+    packageApp: true
+    signingOption: 'manual' # Optional. Options: nosign, default, manual, auto
+    signingIdentity: '$(APPLE_CERTIFICATE_SIGNING_IDENTITY)'
+    provisioningProfileUuid: '$(APPLE_PROV_PROFILE_UUID)'
+
+- task: CopyFiles@2
+  inputs:
+    contents: '**/*.ipa'
+    targetFolder: '$(build.artifactStagingDirectory)'
+    overWrite: true
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathtoPublish: '$(build.artifactStagingDirectory)/output/$(sdk)/$(configuration)' 
+    artifactName: 'drop' 
+    publishLocation: 'Container'
